@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@theme {
+  --color-stfreya-pink: #ffafcc;
+  --color-stfreya-blue: #a2d2ff;
+  --color-stfreya-green: #b9fbc0;
+  --color-stfreya-purple: #cdb4db;
+  --color-stfreya-dark: #1a1b26;
+}
+
+:root {
+  --stfreya-pink: #ffafcc;
+  --stfreya-blue: #a2d2ff;
+  --stfreya-green: #b9fbc0;
+}
+
+body {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+.萌系圆角 {
+  border-radius: 1rem;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 175, 204, 0.3);
+  border-radius: 9999px;
+  transition-property: background-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 175, 204, 0.5);
+}
+
+/* Ant Design Table 定制 */
+.萌系表格 .ant-table {
+  background: transparent !important;
+}
+
+.萌系表格 .ant-table-thead > tr > th {
+  background-color: rgba(255, 175, 204, 0.05) !important;
+  border-bottom: 1px solid rgba(255, 175, 204, 0.1) !important;
+  color: #6b7280 !important;
+  font-weight: 700 !important;
+}
+
+.萌系表格 .ant-table-tbody > tr > td {
+  border-bottom: 1px solid #f3f4f6 !important;
+}
+
+.dark .萌系表格 .ant-table-tbody > tr > td {
+  border-bottom: 1px solid rgba(55, 65, 81, 0.5) !important;
+}
+
+.萌系表格 .ant-table-row:hover > td {
+  background-color: rgba(255, 175, 204, 0.05) !important;
+}
+
+.dark .萌系表格 .ant-table-thead > tr > th {
+  background-color: #1f2937 !important;
+  color: #9ca3af !important;
+}
