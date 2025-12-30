@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -29,6 +30,16 @@ func CreateShare(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// 增加分享奖励
+	go func() {
+		rewardStr := model.GetConfig("share_reward", "2")
+		reward, _ := strconv.Atoi(rewardStr)
+		if reward > 0 {
+			_ = service.AddCoin(userID, reward, "share", "创建分享链接奖励")
+			_ = service.SendMessage(userID, "获得奖励", fmt.Sprintf("创建分享链接成功，获得 %d 个学园币奖励。", reward), "success")
+		}
+	}()
 
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,

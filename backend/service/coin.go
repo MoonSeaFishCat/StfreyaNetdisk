@@ -54,6 +54,10 @@ func SignIn(userID uint) (int, error) {
 		return nil
 	})
 
+	if err == nil {
+		_ = SendMessage(userID, "签到成功", "恭喜！每日签到成功，获得 "+strconv.Itoa(reward)+" 个学园币。", "success")
+	}
+
 	return reward, err
 }
 
@@ -133,9 +137,78 @@ func BatchGenerateInvitationCodes(count int, creatorID uint) ([]string, error) {
 	return codes, err
 }
 
+// AddCoin 增加用户学园币
+func AddCoin(userID uint, amount int, transType string, remark string) error {
+	if amount <= 0 {
+		return nil
+	}
+
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.User{}).Where("id = ?", userID).UpdateColumn("coin", gorm.Expr("coin + ?", amount)).Error; err != nil {
+			return err
+		}
+
+		transaction := model.UserTransaction{
+			UserID: userID,
+			Amount: amount,
+			Type:   transType,
+			Remark: remark,
+		}
+		return tx.Create(&transaction).Error
+	})
+}
+
 // GetUserTransactions 获取用户学园币流水
 func GetUserTransactions(userID uint) ([]model.UserTransaction, error) {
 	var transactions []model.UserTransaction
 	err := model.DB.Where("user_id = ?", userID).Order("created_at desc").Find(&transactions).Error
 	return transactions, err
+}
+
+// ExchangeQuota 兑换存储空间
+func ExchangeQuota(userID uint, gb int) error {
+	if gb <= 0 {
+		return errors.New("兑换容量必须大于 0")
+	}
+
+	var user model.User
+	if err := model.DB.First(&user, userID).Error; err != nil {
+		return err
+	}
+
+	// 1GB = 10 学园币 (暂定)
+	costPerGBStr := model.GetConfig("quota_exchange_cost", "10")
+	costPerGB, _ := strconv.Atoi(costPerGBStr)
+	totalCost := gb * costPerGB
+
+	if user.Coin < totalCost {
+		return errors.New("学园币不足")
+	}
+
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		// 扣除学园币并增加容量
+		// 1GB = 1024 * 1024 * 1024 Bytes
+		increment := int64(gb) * 1024 * 1024 * 1024
+		if err := tx.Model(&user).Updates(map[string]interface{}{
+			"coin":       user.Coin - totalCost,
+			"total_size": user.TotalSize + increment,
+		}).Error; err != nil {
+			return err
+		}
+
+		// 记录流水
+		transaction := model.UserTransaction{
+			UserID: userID,
+			Amount: -totalCost,
+			Type:   "consume",
+			Remark: "兑换存储空间: " + strconv.Itoa(gb) + "GB",
+		}
+		return tx.Create(&transaction).Error
+	})
+
+	if err == nil {
+		_ = SendMessage(userID, "兑换成功", "成功兑换 "+strconv.Itoa(gb)+"GB 存储空间，消耗了 "+strconv.Itoa(totalCost)+" 个学园币。", "success")
+	}
+
+	return err
 }

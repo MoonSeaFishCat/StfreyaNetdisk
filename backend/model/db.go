@@ -35,6 +35,7 @@ func InitDB() {
 		&Share{},
 		&InvitationCode{},
 		&Config{},
+		&Message{},
 	)
 	if err != nil {
 		log.Fatalf("数据库迁移失败: %v", err)
@@ -45,35 +46,25 @@ func InitDB() {
 	// 初始化默认系统配置
 	initDefaultConfigs()
 
-	// 初始化管理员账号
-	var admin User
-	if e := DB.Where("username = ?", "admin").First(&admin).Error; e != nil {
-		if e == gorm.ErrRecordNotFound {
-			log.Println("正在初始化默认管理员账号...")
-			hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
-			adminAccount := User{
-				Username:  "admin",
-				Password:  string(hashedPassword),
-				Email:     "admin@stfreya.com",
-				Role:      "admin",
-				Status:    1,
-				TotalSize: 100 * 1024 * 1024 * 1024, // 100GB
-				Coin:      99999,
-			}
-			if e2 := DB.Create(&adminAccount).Error; e2 != nil {
-				log.Printf("初始化管理员账号失败: %v", e2)
-			} else {
-				log.Println("默认管理员账号初始化成功: admin / admin123")
-			}
+	// 初始化管理员账号 (如果没有管理员)
+	var count int64
+	DB.Model(&User{}).Where("role = ?", "admin").Count(&count)
+	if count == 0 {
+		log.Println("没有发现管理员账号，正在初始化默认管理员...")
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
+		adminAccount := User{
+			Username:  "admin",
+			Password:  string(hashedPassword),
+			Email:     "admin@stfreya.com",
+			Role:      "admin",
+			Status:    1,
+			TotalSize: 100 * 1024 * 1024 * 1024, // 100GB
+			Coin:      99999,
 		}
-	} else {
-		// 校验现有管理员密码是否正确，不正确则重置为 admin123
-		err := bcrypt.CompareHashAndPassword([]byte(admin.Password), []byte("admin123"))
-		if err != nil {
-			log.Println("检测到管理员密码不匹配或哈希无效，正在重置为 admin123...")
-			hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
-			DB.Model(&admin).Update("password", string(hashedPassword))
-			log.Println("管理员密码已重置为: admin123")
+		if err := DB.Create(&adminAccount).Error; err != nil {
+			log.Printf("初始化管理员账号失败: %v", err)
+		} else {
+			log.Println("默认管理员账号初始化成功: admin / admin123")
 		}
 	}
 }
@@ -81,9 +72,11 @@ func InitDB() {
 type StoragePolicy struct {
 	gorm.Model
 	Name      string `gorm:"size:100;not null;comment:策略名称"`
-	Type      string `gorm:"size:20;comment:存储类型(local,s3,oss,cos)"`
+	Type      string `gorm:"size:20;comment:存储类型(local,s3,oss,cos,sftp,onedrive)"`
 	Config    string `gorm:"type:text;comment:配置信息(json)"`
 	IsDefault bool   `gorm:"default:false;comment:是否默认"`
+	Status    int    `gorm:"default:1;comment:状态(1:启用, 0:禁用)"`
+	BaseURL   string `gorm:"size:255;comment:直链基础URL"`
 }
 
 func initDefaultConfigs() {
@@ -94,6 +87,9 @@ func initDefaultConfigs() {
 		{Key: "default_quota", Value: "10737418240", Description: "默认用户配额(10GB)", Type: "int"},
 		{Key: "signin_reward", Value: "5", Description: "每日签到奖励", Type: "int"},
 		{Key: "invite_cost", Value: "10", Description: "生成邀请码成本", Type: "int"},
+		{Key: "upload_reward", Value: "1", Description: "文件上传奖励", Type: "int"},
+		{Key: "share_reward", Value: "2", Description: "创建分享奖励", Type: "int"},
+		{Key: "quota_exchange_cost", Value: "10", Description: "1GB 空间兑换成本(学园币)", Type: "int"},
 	}
 
 	for _, cfg := range configs {

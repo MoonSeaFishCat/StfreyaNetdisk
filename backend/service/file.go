@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -413,6 +414,13 @@ func UploadFile(userID uint, parentID uint, name string, size int64, reader io.R
 		}
 		go func() {
 			_ = utils.IndexFile(fileRecord.ID, userID, name, fileContent)
+			// 增加上传奖励
+			rewardStr := model.GetConfig("upload_reward", "1")
+			reward, _ := strconv.Atoi(rewardStr)
+			if reward > 0 {
+				_ = AddCoin(userID, reward, "upload", fmt.Sprintf("上传文件 [%s] 奖励", name))
+				_ = SendMessage(userID, "获得奖励", fmt.Sprintf("上传文件 [%s] 成功，获得 %d 个学园币奖励。", name, reward), "success")
+			}
 		}()
 
 		return nil
@@ -591,5 +599,17 @@ func PermanentDeleteFile(userID uint, fileID uint) error {
 
 		// 5. 彻底删除数据库记录
 		return tx.Unscoped().Delete(&file).Error
+	})
+}
+
+// BatchDeleteFiles 批量删除文件 (逻辑删除)
+func BatchDeleteFiles(userID uint, ids []uint) error {
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		for _, id := range ids {
+			if err := DeleteFile(userID, id); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }

@@ -49,6 +49,47 @@ func UpdateUserQuota(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
 }
 
+// UpdateUserAdmin 管理员更新用户信息
+func UpdateUserAdmin(c *gin.Context) {
+	var req struct {
+		UserID uint   `json:"userId"`
+		Role   string `json:"role"`
+		Status int    `json:"status"`
+		Coin   int    `json:"coin"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	if err := model.DB.Model(&model.User{}).Where("id = ?", req.UserID).Updates(map[string]interface{}{
+		"role":   req.Role,
+		"status": req.Status,
+		"coin":   req.Coin,
+	}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
+}
+
+// DeleteUser 管理员删除用户
+func DeleteUser(c *gin.Context) {
+	id := c.Param("id")
+	// 简单检查，防止删除自己
+	adminID := c.GetUint("userID")
+	if strconv.FormatUint(uint64(adminID), 10) == id {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "不能删除自己"})
+		return
+	}
+
+	if err := model.DB.Delete(&model.User{}, id).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+}
+
 // ListAllShares 管理员获取所有分享列表
 func ListAllShares(c *gin.Context) {
 	var shares []struct {
@@ -176,23 +217,87 @@ func CreatePolicy(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "创建成功"})
 }
 
+// UpdatePolicy 更新存储策略
+func UpdatePolicy(c *gin.Context) {
+	id := c.Param("id")
+	var req model.StoragePolicy
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	if err := model.DB.Model(&model.StoragePolicy{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"name":       req.Name,
+		"type":       req.Type,
+		"config":     req.Config,
+		"is_default": req.IsDefault,
+		"status":     req.Status,
+		"base_url":   req.BaseURL,
+	}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
+}
+
+// DeletePolicy 删除存储策略
+func DeletePolicy(c *gin.Context) {
+	id := c.Param("id")
+	// 检查是否有文件正在使用该策略
+	var count int64
+	model.DB.Model(&model.File{}).Where("policy_id = ?", id).Count(&count)
+	if count > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "该策略下仍有文件，无法删除"})
+		return
+	}
+
+	if err := model.DB.Delete(&model.StoragePolicy{}, id).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+}
+
 // GetSystemStats 获取系统统计信息
 func GetSystemStats(c *gin.Context) {
 	var userCount int64
 	var fileCount int64
 	var totalStorage int64
 	var shareCount int64
+	var totalCoins int64
+	var invitationCount int64
 
 	model.DB.Model(&model.User{}).Count(&userCount)
 	model.DB.Model(&model.File{}).Count(&fileCount)
 	model.DB.Model(&model.Share{}).Count(&shareCount)
 	model.DB.Model(&model.File{}).Select("SUM(size)").Scan(&totalStorage)
+	model.DB.Model(&model.User{}).Select("SUM(coin)").Scan(&totalCoins)
+	model.DB.Model(&model.InvitationCode{}).Count(&invitationCount)
+
+	var recentUsers []model.User
+	model.DB.Order("created_at desc").Limit(5).Find(&recentUsers)
+
+	var recentFiles []struct {
+		model.File
+		Username string `json:"username"`
+	}
+	model.DB.Table("files").
+		Select("files.*, users.username").
+		Joins("left join users on users.id = files.user_id").
+		Where("files.is_folder = ?", false).
+		Order("files.created_at desc").
+		Limit(5).
+		Find(&recentFiles)
 
 	c.JSON(http.StatusOK, gin.H{
-		"userCount":    userCount,
-		"fileCount":    fileCount,
-		"totalStorage": totalStorage,
-		"shareCount":   shareCount,
+		"userCount":       userCount,
+		"fileCount":       fileCount,
+		"totalStorage":    totalStorage,
+		"shareCount":      shareCount,
+		"totalCoins":      totalCoins,
+		"invitationCount": invitationCount,
+		"recentUsers":     recentUsers,
+		"recentFiles":     recentFiles,
 	})
 }
 

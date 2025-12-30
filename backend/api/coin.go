@@ -73,3 +73,22 @@ func ListUserInvitationCodes(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"data": codes})
 }
+
+// ExchangeQuota 兑换存储空间接口
+func ExchangeQuota(c *gin.Context) {
+	userID := c.GetUint("userID")
+	var req struct {
+		GB int `json:"gb" binding:"required,min=1"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	if err := service.ExchangeQuota(userID, req.GB); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("成功兑换 %dGB 存储空间", req.GB)})
+}

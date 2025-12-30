@@ -28,15 +28,26 @@ func GetDriver(policy *model.StoragePolicy) (Driver, error) {
 		return NewLocalDriver(cfg.Root), nil
 	case "s3":
 		var cfg struct {
-			Endpoint, AccessKey, SecretKey, Bucket, Region string
+			Endpoint  string `json:"endpoint"`
+			AccessKey string `json:"accessKey"`
+			SecretKey string `json:"secretKey"`
+			Bucket    string `json:"bucket"`
+			Region    string `json:"region"`
 		}
-		json.Unmarshal([]byte(policy.Config), &cfg)
+		if err := json.Unmarshal([]byte(policy.Config), &cfg); err != nil {
+			return nil, errors.New("存储策略配置错误")
+		}
 		return NewS3Driver(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey, cfg.Bucket, cfg.Region)
 	case "oss":
 		var cfg struct {
-			Endpoint, AccessKey, SecretKey, Bucket string
+			Endpoint  string `json:"endpoint"`
+			AccessKey string `json:"accessKey"`
+			SecretKey string `json:"secretKey"`
+			Bucket    string `json:"bucket"`
 		}
-		json.Unmarshal([]byte(policy.Config), &cfg)
+		if err := json.Unmarshal([]byte(policy.Config), &cfg); err != nil {
+			return nil, errors.New("存储策略配置错误")
+		}
 		return NewOSSDriver(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey, cfg.Bucket)
 	case "cos":
 		var cfg struct {
@@ -44,7 +55,9 @@ func GetDriver(policy *model.StoragePolicy) (Driver, error) {
 			SecretID  string `json:"secretId"`
 			SecretKey string `json:"secretKey"`
 		}
-		json.Unmarshal([]byte(policy.Config), &cfg)
+		if err := json.Unmarshal([]byte(policy.Config), &cfg); err != nil {
+			return nil, errors.New("存储策略配置错误")
+		}
 		return NewCOSDriver(cfg.BucketURL, cfg.SecretID, cfg.SecretKey)
 	case "sftp":
 		var cfg struct {

@@ -37,6 +37,7 @@ func main() {
 	// 路由组
 	v1 := r.Group("/api/v1")
 	{
+
 		// 公开接口 (认证相关)
 		auth := v1.Group("/auth")
 		{
@@ -72,6 +73,7 @@ func main() {
 			file.PUT("/rename/:id", api.RenameFile)
 			file.PUT("/move/:id", api.MoveFile)
 			file.POST("/batch/download", api.BatchDownloadFiles)
+			file.POST("/batch/delete", api.BatchDeleteFiles)
 			file.GET("/search", api.SearchFiles)
 			file.GET("/recycle", api.ListRecycleBin)
 			file.POST("/restore/:id", api.RestoreFile)
@@ -86,8 +88,14 @@ func main() {
 		{
 			admin.GET("/users", api.ListUsers)
 			admin.POST("/user/quota", api.UpdateUserQuota)
+			admin.PUT("/user/update", api.UpdateUserAdmin)
+			admin.DELETE("/user/:id", api.DeleteUser)
 			admin.GET("/policies", api.ListPolicies)
 			admin.POST("/policy", api.CreatePolicy)
+			admin.PUT("/policy/:id", api.UpdatePolicy)
+			admin.DELETE("/policy/:id", api.DeletePolicy)
+			admin.POST("/policy/test", api.TestStorageConnection)
+			admin.GET("/policy/templates", api.GetStorageTemplates)
 			admin.GET("/stats", api.GetSystemStats)
 			admin.GET("/configs", api.ListConfigs)
 			admin.POST("/configs", api.UpdateConfigs)
@@ -99,18 +107,27 @@ func main() {
 			admin.DELETE("/invite/:id", api.DeleteInvitationCodeAdmin)
 		}
 
-		// 用户相关接口 (需要认证)
+		// 用户接口 (积分、邀请、消息等)
 		user := v1.Group("/user")
 		user.Use(middleware.AuthMiddleware())
 		{
 			user.GET("/info", api.GetUserInfo)
 			user.PUT("/profile", api.UpdateProfile)
 			user.POST("/signin", api.UserSignIn)
+			user.POST("/exchange/quota", api.ExchangeQuota)
 			user.POST("/invite/generate", api.GenerateInvitationCode)
 			user.GET("/invite/list", api.ListUserInvitationCodes)
 			user.GET("/shares", api.ListUserShares)
 			user.DELETE("/share/:id", api.DeleteUserShare)
 			user.GET("/transactions", api.GetUserTransactions)
+
+			// 消息通知
+			user.GET("/messages", api.ListMessages)
+			user.GET("/messages/unread/count", api.GetUnreadCount)
+			user.POST("/messages/read/:id", api.MarkMessageRead)
+			user.POST("/messages/read/all", api.MarkAllMessagesRead)
+			user.DELETE("/messages/:id", api.DeleteMessage)
+
 			user.GET("/ping", func(c *gin.Context) {
 				c.JSON(200, gin.H{"message": "auth success"})
 			})

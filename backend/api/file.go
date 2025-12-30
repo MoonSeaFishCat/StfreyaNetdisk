@@ -366,3 +366,22 @@ func SearchFiles(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"data": files})
 }
+
+// BatchDeleteFiles 批量删除文件
+func BatchDeleteFiles(c *gin.Context) {
+	userID := c.GetUint("userID")
+	var req struct {
+		IDs []uint `json:"ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	if err := service.BatchDeleteFiles(userID, req.IDs); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "批量删除成功"})
+}

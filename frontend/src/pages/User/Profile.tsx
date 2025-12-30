@@ -1,310 +1,147 @@
-import React, { useState, useEffect } from 'react';
-import MainLayout from '../../components/Layout/MainLayout';
-import { Card, Avatar, Typography, Tag, Space, Button, Table, Tabs, Statistic, Row, Col, Progress } from 'antd';
-import { UserOutlined, HistoryOutlined, SettingOutlined, TrophyOutlined, CloudServerOutlined, ShareAltOutlined, KeyOutlined, DeleteOutlined, CopyOutlined } from '@ant-design/icons';
-import { useUserStore } from '../../store/useUserStore';
-import { formatBytes } from '../../utils/format';
+import React, { useState } from 'react';
+import { Card, Form, Input, Button, Avatar, Divider } from 'antd';
+import { UserOutlined, MailOutlined, LockOutlined, CameraOutlined } from '@ant-design/icons';
+import { motion } from 'framer-motion';
+import { useAuthStore } from '../../store';
 import request from '../../utils/request';
-import { message, Modal } from 'antd';
-
-const { Title, Text } = Typography;
+import antdGlobal from '../../utils/antd';
 
 const Profile: React.FC = () => {
-  const { user } = useUserStore();
+  const { user, setUser } = useAuthStore();
   const [loading, setLoading] = useState(false);
-  const [transactions, setTransactions] = useState([]);
-  const [shares, setShares] = useState([]);
-  const [invites, setInvites] = useState([]);
+  const [form] = Form.useForm();
 
-  const fetchTransactions = async () => {
+  const handleUpdate = async (values: any) => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const res: any = await request.get('/user/transactions');
-      setTransactions(res.data || []);
-    } catch (error) {
-      // 错误由拦截器处理
+      await request.put('/user/profile', {
+        email: values.email,
+        password: values.password,
+        avatar: values.avatar,
+      });
+      antdGlobal.message.success('更新成功');
+      
+      // 重新获取用户信息
+      const res: any = await request.get('/user/info');
+      setUser(res.user);
+      form.setFieldsValue({ password: '' });
+    } catch (err: any) {
+      antdGlobal.message.error(err.response?.data?.error || '更新失败');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchShares = async () => {
-    try {
-      const res: any = await request.get('/user/shares');
-      setShares(res.data || []);
-    } catch (error) {}
-  };
-
-  const fetchInvites = async () => {
-    try {
-      const res: any = await request.get('/user/invite/list');
-      setInvites(res.data || []);
-    } catch (error) {}
-  };
-
-  useEffect(() => {
-    fetchTransactions();
-    fetchShares();
-    fetchInvites();
-  }, []);
-
-  const handleDeleteShare = (id: number) => {
-    Modal.confirm({
-      title: '确认取消分享?',
-      content: '取消后分享链接将失效。',
-      okText: '确认',
-      cancelText: '取消',
-      onOk: async () => {
-        try {
-          await request.delete(`/user/share/${id}`);
-          message.success('分享已取消');
-          fetchShares();
-        } catch (error) {}
-      }
-    });
-  };
-
-  const handleCopy = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    message.success(`${label}已复制`);
-  };
-
-  const transactionColumns = [
-    {
-      title: '类型',
-      dataIndex: 'type',
-      key: 'type',
-      render: (type: string) => (
-        <Tag color={type === 'income' ? 'success' : 'warning'}>
-          {type === 'income' ? '收入' : '支出'}
-        </Tag>
-      ),
-    },
-    {
-      title: '数额',
-      dataIndex: 'Amount',
-      key: 'Amount',
-      render: (amount: number) => (
-        <span className={amount > 0 ? 'text-green-500' : 'text-orange-500'}>
-          {amount > 0 ? '+' : ''}{amount}
-        </span>
-      ),
-    },
-    {
-      title: '描述',
-      dataIndex: 'Remark',
-      key: 'Remark',
-    },
-    {
-      title: '时间',
-      dataIndex: 'CreatedAt',
-      key: 'CreatedAt',
-      render: (date: string) => new Date(date).toLocaleString(),
-    },
-  ];
-
-  const shareColumns = [
-    {
-      title: '文件名',
-      dataIndex: 'fileName',
-      key: 'fileName',
-      ellipsis: true,
-    },
-    {
-      title: '提取码',
-      dataIndex: 'Password',
-      key: 'Password',
-      render: (pw: string) => pw || <Text type="secondary">公开</Text>,
-    },
-    {
-      title: '过期时间',
-      dataIndex: 'ExpireTime',
-      key: 'ExpireTime',
-      render: (time: string) => time ? new Date(time).toLocaleString() : '永久有效',
-    },
-    {
-      title: '访问/下载',
-      key: 'stats',
-      render: (_: any, record: any) => (
-        <Text type="secondary">{record.Views} / {record.Downloads}</Text>
-      ),
-    },
-    {
-      title: '操作',
-      key: 'action',
-      render: (_: any, record: any) => (
-        <Space>
-          <Button 
-            type="text" 
-            icon={<CopyOutlined />} 
-            onClick={() => handleCopy(`${window.location.origin}/s/${record.Token}`, '分享链接')}
-          />
-          <Button 
-            type="text" 
-            danger 
-            icon={<DeleteOutlined />} 
-            onClick={() => handleDeleteShare(record.ID)}
-          />
-        </Space>
-      ),
-    },
-  ];
-
-  const inviteColumns = [
-    {
-      title: '邀请码',
-      dataIndex: 'Code',
-      key: 'Code',
-      render: (code: string) => (
-        <Space>
-          <Text copyable>{code}</Text>
-        </Space>
-      ),
-    },
-    {
-      title: '状态',
-      dataIndex: 'Status',
-      key: 'Status',
-      render: (status: number, record: any) => (
-        status === 1 ? (
-          <Tag color="success">已使用 ({record.usedByUsername})</Tag>
-        ) : (
-          <Tag color="processing">未使用</Tag>
-        )
-      ),
-    },
-    {
-      title: '生成时间',
-      dataIndex: 'CreatedAt',
-      key: 'CreatedAt',
-      render: (date: string) => new Date(date).toLocaleString(),
-    },
-  ];
-
-  const usedSize = user?.usedSize || 0;
-  const totalSize = user?.totalSize || 0;
-  const usagePercent = totalSize > 0 ? Math.round((usedSize / totalSize) * 100) : 0;
-
   return (
-    <MainLayout>
-      <div className="max-w-6xl mx-auto space-y-6">
-        <Row gutter={24}>
-          <Col span={8}>
-            <Card className="萌系圆角 shadow-xl border-none text-center h-full">
-              <div className="flex flex-col items-center gap-6 w-full py-4">
-                <Avatar 
-                  size={120} 
-                  src={user?.avatar} 
-                  icon={<UserOutlined />} 
-                  className="border-4 border-stfreya-pink shadow-lg"
-                />
-                <div>
-                  <Title level={3} className="mb-0">{user?.username}</Title>
-                  <Text type="secondary">{user?.email}</Text>
-                </div>
-                <div className="flex flex-wrap justify-center gap-2">
-                  <Tag color="magenta" className="萌系圆角">{user?.role === 'admin' ? '校董会成员' : '普通学员'}</Tag>
-                  <Tag color="cyan" className="萌系圆角">Lv.1 见习学员</Tag>
-                </div>
-                <div className="bg-stfreya-pink/5 p-4 rounded-2xl w-full">
-                  <Statistic 
-                    title="当前学园币" 
-                    value={user?.coin} 
-                    prefix={<TrophyOutlined className="text-stfreya-pink" />}
-                  />
-                  <Button type="primary" className="萌系圆角 mt-4 w-full">充值学园币</Button>
-                </div>
+    <div className="max-w-2xl mx-auto space-y-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <Card className="!rounded-3xl border-none shadow-sm dark:bg-neutral-900/50">
+          <div className="flex flex-col items-center py-8">
+            <div className="relative group cursor-pointer">
+              <Avatar 
+                size={120} 
+                src={user?.avatar || undefined} 
+                icon={<UserOutlined />} 
+                className="bg-stfreya-500 ring-4 ring-stfreya-100 dark:ring-neutral-800"
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                <CameraOutlined className="text-white text-2xl" />
               </div>
-            </Card>
-          </Col>
-          <Col span={16}>
-            <div className="space-y-6">
-              <Card className="萌系圆角 shadow-xl border-none" title={<><CloudServerOutlined className="mr-2" />存储概览</>}>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-end">
-                    <Statistic title="已使用容量" value={formatBytes(usedSize)} />
-                    <Text type="secondary">总容量: {formatBytes(totalSize)}</Text>
-                  </div>
-                  <Progress 
-                    percent={usagePercent} 
-                    strokeColor={{ '0%': '#ffafcc', '100%': '#ffc2d1' }}
-                    status="active"
-                    strokeWidth={12}
-                  />
-                  <div className="grid grid-cols-3 gap-4 mt-4">
-                    <Card size="small" className="bg-stfreya-pink/5 border-none 萌系圆角">
-                      <Statistic title="文件数量" value={user?.fileCount || 0} />
-                    </Card>
-                    <Card size="small" className="bg-stfreya-blue/5 border-none 萌系圆角">
-                      <Statistic title="分享链接" value={shares.length} />
-                    </Card>
-                    <Card size="small" className="bg-purple-50 border-none 萌系圆角">
-                      <Statistic title="未使用邀请码" value={invites.filter((i: any) => i.Status === 0).length} />
-                    </Card>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="萌系圆角 shadow-xl border-none">
-                <Tabs 
-                  defaultActiveKey="history"
-                  items={[
-                    {
-                      key: 'history',
-                      label: <span><HistoryOutlined /> 学园币流水</span>,
-                      children: (
-                        <Table 
-                          dataSource={transactions} 
-                          columns={transactionColumns} 
-                          loading={loading}
-                          pagination={{ pageSize: 5 }}
-                          size="small"
-                        />
-                      ),
-                    },
-                    {
-                      key: 'shares',
-                      label: <span><ShareAltOutlined /> 我的分享</span>,
-                      children: (
-                        <Table 
-                          dataSource={shares} 
-                          columns={shareColumns} 
-                          pagination={{ pageSize: 5 }}
-                          size="small"
-                        />
-                      ),
-                    },
-                    {
-                      key: 'invites',
-                      label: <span><KeyOutlined /> 邀请码</span>,
-                      children: (
-                        <Table 
-                          dataSource={invites} 
-                          columns={inviteColumns} 
-                          pagination={{ pageSize: 5 }}
-                          size="small"
-                        />
-                      ),
-                    },
-                    {
-                      key: 'settings',
-                      label: <span><SettingOutlined /> 账号设置</span>,
-                      children: (
-                        <div className="py-4 space-y-4">
-                          <Button block className="萌系圆角">修改密码</Button>
-                          <Button block className="萌系圆角">更换头像</Button>
-                          <Button block className="萌系圆角 text-red-500">退出登录</Button>
-                        </div>
-                      ),
-                    },
-                  ]}
-                />
-              </Card>
             </div>
-          </Col>
-        </Row>
-      </div>
-    </MainLayout>
+            <h2 className="mt-4 text-2xl font-bold text-slate-800 dark:text-slate-100">{user?.username}</h2>
+            <p className="text-slate-500 dark:text-slate-400 uppercase tracking-widest text-xs font-semibold mt-1">
+              {user?.role === 'admin' ? '管理员' : '普通用户'}
+            </p>
+          </div>
+
+          <Divider className="dark:border-neutral-800" />
+
+          <Form
+            form={form}
+            layout="vertical"
+            initialValues={{
+              email: user?.email,
+              avatar: user?.avatar,
+            }}
+            onFinish={handleUpdate}
+            className="px-4"
+          >
+            <Form.Item
+              name="email"
+              label={<span className="dark:text-slate-300 font-medium">电子邮箱</span>}
+              rules={[{ type: 'email', message: '请输入有效的邮箱地址' }]}
+            >
+              <Input 
+                prefix={<MailOutlined className="text-slate-400" />} 
+                placeholder="你的邮箱"
+                className="!rounded-xl dark:bg-neutral-800 dark:border-neutral-700 dark:text-slate-200"
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="avatar"
+              label={<span className="dark:text-slate-300 font-medium">头像 URL</span>}
+            >
+              <Input 
+                prefix={<CameraOutlined className="text-slate-400" />} 
+                placeholder="头像链接"
+                className="!rounded-xl dark:bg-neutral-800 dark:border-neutral-700 dark:text-slate-200"
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="password"
+              label={<span className="dark:text-slate-300 font-medium">新密码</span>}
+            >
+              <Input.Password
+                prefix={<LockOutlined className="text-slate-400" />}
+                placeholder="若不修改请留空"
+                className="!rounded-xl dark:bg-neutral-800 dark:border-neutral-700 dark:text-slate-200"
+              />
+            </Form.Item>
+
+            <Form.Item className="mt-8">
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={loading}
+                block
+                className="h-12 !rounded-xl bg-stfreya-500 hover:bg-stfreya-600 border-none shadow-lg shadow-stfreya-200 dark:shadow-stfreya-900/50 text-lg font-bold"
+              >
+                保存修改
+              </Button>
+            </Form.Item>
+          </Form>
+        </Card>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+      >
+        <Card className="!rounded-3xl border-none shadow-sm dark:bg-neutral-900/50 p-6">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4">账号统计</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+            <div className="p-4 bg-slate-50 dark:bg-neutral-800/50 rounded-2xl">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">已用容量</p>
+              <p className="text-xl font-bold text-stfreya-500">{((user?.usedSize || 0) / 1024 / 1024 / 1024).toFixed(2)} GB</p>
+            </div>
+            <div className="p-4 bg-slate-50 dark:bg-neutral-800/50 rounded-2xl">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">总容量</p>
+              <p className="text-xl font-bold text-slate-700 dark:text-slate-200">{((user?.totalSize || 0) / 1024 / 1024 / 1024).toFixed(0)} GB</p>
+            </div>
+            <div className="p-4 bg-slate-50 dark:bg-neutral-800/50 rounded-2xl">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">学园币</p>
+              <p className="text-xl font-bold text-amber-500">{user?.coin || 0}</p>
+            </div>
+          </div>
+        </Card>
+      </motion.div>
+    </div>
   );
 };
 
